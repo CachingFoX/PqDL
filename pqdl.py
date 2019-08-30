@@ -41,18 +41,19 @@ BASE_URL = RAW_BASE_URL % ""
 
 import mechanize
 import optparse
-import cookielib
+from http.cookiejar import LWPCookieJar
 import os
-import BeautifulSoup
+import bs4
+from bs4 import BeautifulSoup
 import re
 import sys
 import random
-import ConfigParser
+import configparser
 import zipfile
 import getpass
 import fnmatch
 import logging
-import urllib2
+from urllib.request import urlopen
 import uuid
 import webbrowser
 import functools
@@ -112,9 +113,9 @@ def check_update(browser=True):
 
     try:
         # Opening the URL that was built before
-        request = urllib2.urlopen(url)
+        request = urlopen(url)
         # Making a new ConfigParser and feeding it with the request result
-        parser = ConfigParser.ConfigParser()
+        parser = configparser.ConfigParser()
         # urllib2.urlopen returns a file-like object, so I can do this:
         parser.readfp(request)
 
@@ -252,7 +253,7 @@ with -d -l to get the friendly name or other parameters.""")
     def print_help(*args, **kwargs):
         """Handler for print_help that does prints a newline after the text"""
         parser.print_help(*args, **kwargs)
-        print '\n'
+        print('\n')
 
     # Core options
     parser.add_option('-u', '--username', help="Username on GC.com "
@@ -424,7 +425,7 @@ wildcards yet."""
 
     if not opts.noini:
 
-        oparse = ConfigParser.ConfigParser()
+        oparse = configparser.ConfigParser()
         # Multiple locations, it will prefer the first one
         oparse.read([
             opts.ini,
@@ -466,7 +467,7 @@ wildcards yet."""
     # If no simulation and password, request it.
     if not opts.password and not opts.pqsitefile:
         opts.password = getpass.getpass("\nPassword for %s: " % opts.username)
-        print ''
+        print('')
 
     # The password should be available now, so let's check if the user
     # requested it encoded to base64.
@@ -540,7 +541,7 @@ class PqBrowser(mechanize.Browser):
         # Get the logger
         self.logger = logging.getLogger('browser')
         # Various options
-        cookiejar = cookielib.LWPCookieJar()
+        cookiejar = LWPCookieJar()
         self.set_cookiejar(cookiejar)
         self.set_handle_equiv(True)
         #self.set_handle_gzip(True)
@@ -571,14 +572,14 @@ class PqBrowser(mechanize.Browser):
         #for f in self.forms():
         #   print f
         self.select_form(nr=0)
-        self.form['Username'] = username
+        self.form['UsernameOrEmail'] = username
         self.form['Password'] = password        
         self.submit()
         
 
-        response = self.response().read()
-        logger.log(5, response)
-        if not '/my/default.aspx' in response:
+        response = self.response()
+        logger.log(5, response.read())
+        if not 'www.geocaching.com/play/search' in response.wrapped._url:
 
             logger.critical("Could not log in. Please check your password. "
                             "If your username or password contains spaces, "
@@ -630,15 +631,16 @@ class PqBrowser(mechanize.Browser):
         logger = logging.getLogger('browser.parser')
         if not self.pqsimulate:
             response = self.open(
-                "%s/pocket/default.aspx" % BASE_URL).read()
-            if not "/my/default.aspx" in response:
+                "%s/pocket/default.aspx" % BASE_URL)
+            if not 'www.geocaching.com/pocket/default.aspx' in response.wrapped._url:
                 logger.error("Invalid PQ site. Not logged in?")
+            response = response.read()
         else:
             response = open(self.pqfile, 'r')
         #f = open('debug.txt')
         #response = f.read()
 
-        soup = BeautifulSoup.BeautifulSoup(response)
+        soup = BeautifulSoup(response)
         links = soup(id=re.compile("trPQDownloadRow"))
 
         logger.log(5, response)
@@ -683,13 +685,15 @@ def slugify(value):
     and converts spaces to hyphens.
     """
     import unicodedata
-    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
-    value = unicode(re.sub('[^\w\s-]', '', value).strip())
+    value = unicodedata.normalize('NFKD', value)
+    value = value.encode('ascii', 'ignore')
+    value = value.decode('ascii')
+    value = re.sub('[^\w\s-]', '', str(value)).strip() #unicode()
     return re.sub('[-\s]+', '-', value)
 
 def get_mapstr(mparser, link):
     """Searches a valid mapping for a PQ on the mapping config parser."""
-    isinstance(mparser, ConfigParser.ConfigParser)
+    isinstance(mparser, configparser.ConfigParser)
     logger = logging.getLogger('main.mapping.getstr')
     if mparser.has_section('Map'):
         for key in ('chkdelete', 'friendlyname', 'name', 'date', 'count'):
@@ -749,7 +753,7 @@ def main():
                  "Python: %s" % (mechanize.__version__[0],
                                  mechanize.__version__[1],
                                  mechanize.__version__[2],
-                                 BeautifulSoup.__version__,
+                                 bs4.__version__,
                                  os.path.basename(sys.argv[0]),
                                  sys.version))
 
@@ -784,7 +788,7 @@ def main():
 
     if opts.journal or opts.usejournal:
         journal = True
-        cparser = ConfigParser.RawConfigParser()
+        cparser = configparser.RawConfigParser()
         cfiles = cparser.read([opts.journalfile])
         logger.debug("Journal: %s" % cfiles)
         if opts.resetjournal:
@@ -795,7 +799,7 @@ def main():
         journal = False
 
     if opts.mappings:
-        mparser = ConfigParser.RawConfigParser()
+        mparser = configparser.RawConfigParser()
         mfiles = mparser.read([opts.mapfile])
         logger.debug("Mappings: %s" %mfiles)
 
@@ -825,8 +829,8 @@ def main():
                                     'with date {date} has already been '
                                     'downloaded.'.format(**link))
                         continue
-                except (ConfigParser.NoOptionError,
-                        ConfigParser.NoSectionError):
+                except (configparser.NoOptionError,
+                        configparser.NoSectionError):
                     pass
             if (check_linkmatch(link, excludes)):
                 logger.info('"{name}" skipped because it is is exluded.'.
