@@ -1002,7 +1002,7 @@ def main():
             cfile.close()
 
     if opts.noexit:
-        raw_input('Press any key to exit.')
+        input('Press any key to exit.')
 
 if __name__ == "__main__":
     logging.info("""PQdl v%s (%s) by %s.
