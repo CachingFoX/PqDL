@@ -1,5 +1,9 @@
 # PqDL
 
+(01.09.2019)
+* porting to Python3 (not all parts)
+* adapt login to new behaviour of www.geocaching.com (new redirect after login)
+
 (27.04.2017)
 * Binary added. Thanks to Geo Chief
 
